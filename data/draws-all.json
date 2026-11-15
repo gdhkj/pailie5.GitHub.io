@@ -1,6 +1,6 @@
 {
   "game": "排列五",
-  "source": "中國體育彩票官方網站",
+  "source": "用戶提供的完整歷史數據 draws-all.json",
   "draws": [
     {
       "issue": "04001",
