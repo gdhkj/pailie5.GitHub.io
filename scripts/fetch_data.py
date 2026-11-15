@@ -2,8 +2,9 @@
 """Fetch latest 100+ P5 draws from China Sports Lottery history endpoint.
 Endpoint/gameNo are configurable because upstream may change them.
 """
-import json, os, re, sys, time
+import json, os, re, time
 from datetime import datetime, timezone
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from pathlib import Path
 
@@ -11,6 +12,8 @@ URL = os.getenv("SPORTTERY_API_URL", "https://webapi.sporttery.cn/gateway/lotter
 GAME_NO = os.getenv("SPORTTERY_GAME_NO", "350133")
 PAGE_SIZE = int(os.getenv("SPORTTERY_PAGE_SIZE", "100"))
 OUT = Path("data/draws.json")
+MAX_RETRIES = int(os.getenv("SPORTTERY_MAX_RETRIES", "4"))
+
 
 def request_page(page):
     params = f"?gameNo={GAME_NO}&provinceId=0&pageSize={PAGE_SIZE}&isVerify=1&pageNo={page}"
@@ -19,13 +22,34 @@ def request_page(page):
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://m.lottery.gov.cn/",
     })
-    with urlopen(req, timeout=25) as resp:
-        raw = resp.read().decode("utf-8", "replace")
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        # WAF or upstream response is not JSON; do not silently treat as empty data.
-        raise RuntimeError("官方接口返回的内容不是 JSON：" + raw[:300])
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with urlopen(req, timeout=25) as resp:
+                raw = resp.read().decode("utf-8", "replace")
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                raise RuntimeError("官方接口返回的內容不是 JSON：" + raw[:300])
+        except HTTPError as exc:
+            if exc.code in (403, 429, 500, 502, 503, 504, 567):
+                wait = 30 if exc.code == 567 else 10 * attempt
+                if attempt < MAX_RETRIES:
+                    print(f"HTTP {exc.code} on page {page}, retry {attempt}/{MAX_RETRIES} after {wait}s")
+                    time.sleep(wait)
+                    continue
+                raise RuntimeError(f"官方接口返回 HTTP {exc.code}，重試 {MAX_RETRIES} 次後仍失敗。") from exc
+            raise
+        except URLError as exc:
+            if attempt < MAX_RETRIES:
+                wait = 10 * attempt
+                print(f"URL error on page {page}, retry {attempt}/{MAX_RETRIES} after {wait}s: {exc}")
+                time.sleep(wait)
+                continue
+            raise RuntimeError(f"官方接口連線錯誤: {exc}") from exc
+
+    raise RuntimeError(f"page {page} retries exhausted")
+
 
 def walk(obj):
     if isinstance(obj, dict):
@@ -35,6 +59,7 @@ def walk(obj):
     elif isinstance(obj, list):
         for v in obj:
             yield from walk(v)
+
 
 def parse_records(payload):
     found = {}
@@ -48,7 +73,6 @@ def parse_records(payload):
             digits = list(re.sub(r"\D", "", str(raw)))
         if len(digits) < 4:
             continue
-        # 排列五开奖结果为五位；本系统只分析前四位：万、千、百、十。
         number5 = "".join(digits[:5])
         number4 = number5[:4]
         date = item.get("lotteryDrawTime") or item.get("openTime") or item.get("drawTime") or ""
@@ -58,6 +82,7 @@ def parse_records(payload):
         }
     return list(found.values())
 
+
 def main():
     records = []
     errors = []
@@ -66,31 +91,33 @@ def main():
             payload = request_page(page)
             batch = parse_records(payload)
             if not batch:
-                # Stop only after the first empty page; a changed response schema is an error.
                 if page == 1:
-                    raise RuntimeError("接口响应中未找到期号及开奖号码字段；需重新核对官方响应结构。")
+                    raise RuntimeError("接口響應中未找到期號及開獎號碼欄位；需重新核對官方響應結構。")
                 break
             records.extend(batch)
             if len(records) >= 500:
                 break
-            time.sleep(1.2)
+            time.sleep(1.5)
         except Exception as exc:
             errors.append(f"page {page}: {exc}")
             if page == 1:
                 raise
             break
+
     unique = {x["period"]: x for x in records}
     records = sorted(unique.values(), key=lambda x: x["period"], reverse=True)[:500]
     if len(records) < 100:
-        raise RuntimeError(f"仅取得 {len(records)} 期，少于最低100期；拒绝覆盖旧数据。错误：{errors}")
+        raise RuntimeError(f"僅取得 {len(records)} 期，少於最低 100 期；拒絕覆蓋舊資料。錯誤：{errors}")
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     result = {
         "meta": {
-            "source": URL, "game_no": GAME_NO,
+            "source": URL,
+            "game_no": GAME_NO,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "status": "official endpoint fetch; verify against official publication",
             "records": len(records),
-            "note": "仅分析官方五位开奖号码的前四位（万千百十）；原始五位保存在 official_number。"
+            "note": "僅分析官方五位開獎號碼的前四位（萬千百十）；原始五位保存在 official_number。"
         },
         "draws": records
     }
@@ -100,6 +127,7 @@ def main():
     print(f"Saved {len(records)} draws to {OUT}")
     if errors:
         print("Warnings:", "; ".join(errors))
+
 
 if __name__ == "__main__":
     main()
