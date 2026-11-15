@@ -1,4 +1,4 @@
-const CACHE='p5-v5-shell-2';
+const CACHE='p5-v5-shell-3';
 const LLM_URL='https://esm.run/@mlc-ai/web-llm@0.2.84';
 const SHELL=['./','./index.html','./manifest.webmanifest','./data/draws.json'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const c=await caches.open(CACHE);await c.addAll(SHELL);try{await c.add(LLM_URL)}catch(e){}await self.skipWaiting()})()));

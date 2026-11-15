@@ -16,7 +16,7 @@
 <div class="notice">重要：杀号命中率的隨機基準為 K/10。歷史頻率、遺漏及 AI 模型都不能保證未來開獎；未通過樣本外證據門檻時，系統會顯示「暫不建議杀号」。</div>
 </section>
 <section id="ai" class="hidden">
-<div class="panel"><div class="row"><h2 style="margin:0">本機語言 AI（Qwen 0.5B）</h2><span class="right pill" id="llmStatus">尚未載入</span></div><p class="sub">可選裝本機小模型，第一次下載需要網絡；模型和數據留在此瀏覽器。模型不會直接決定正式杀号，負責獨立提出實驗性候選及審核雙引擎結果。</p><div class="row"><button class="primary" id="loadModel">下載／載入本機 AI</button><button id="unloadModel" class="secondary" disabled>釋放模型記憶體</button><span class="sub" id="modelProgressText">建議先在 Wi-Fi 下下載；模型檔案約數百 MB，實際容量依模型版本而異。</span></div><div class="progress"><i id="modelProgress"></i></div><div id="modelNotice" class="notice section">模型尚未載入。若設備不支援 WebGPU，統計與 AI 特徵引擎仍可正常使用。</div></div>
+<div class="panel"><div class="row"><h2 style="margin:0">本機語言 AI（Qwen 0.5B）</h2><span class="right pill" id="llmStatus">尚未載入</span></div><p class="sub">可選裝本機小模型，第一次下載需要網絡；模型和數據留在此瀏覽器。模型不會直接決定正式杀号，負責獨立提出實驗性候選及審核雙引擎結果。</p><div class="row"><button class="primary" id="loadModel">下載／載入本機 AI</button><button id="unloadModel" class="secondary" disabled>釋放模型記憶體</button><span class="sub" id="modelProgressText">Qwen2.5-0.5B 模型約 945 MB。建議電腦＋Wi-Fi 首次下載；iPhone 可能因記憶體/WebGPU限制無法載入。</span></div><div class="progress"><i id="modelProgress"></i></div><div id="modelNotice" class="notice section">模型尚未載入。若設備不支援 WebGPU，統計與 AI 特徵引擎仍可正常使用。</div></div>
 <div class="panel"><h2>AI 獨立杀号與統計審核</h2><div class="row"><button id="runAI" class="primary" disabled>讓 AI 獨立分析＋審核</button><span class="sub">需先載入模型；結果只標記為實驗性分析。</span></div><div id="llmResult" class="section sub">尚未執行語言 AI。</div></div>
 <div class="bluebox">本機運算原則：不呼叫雲端聊天 API，不上傳你的開獎數據。模型第一次下載、程式庫更新或清除瀏覽器網站資料時，仍可能需要網絡。瀏覽器可能清理快取，離線永久保存不作保證。</div>
 </section>
@@ -50,7 +50,63 @@ function renderStats(){let wins=[30,60,100,300,draws.length];$('statsView').inne
 function renderHistory(){ $('historyTable').innerHTML=`<table><thead><tr><th>期號</th><th>日期</th><th>完整五位號碼</th></tr></thead><tbody>${draws.slice(-100).reverse().map(d=>`<tr><td>${esc(d.issue)}</td><td>${esc(d.date)}</td><td><b>${esc(d.number)}</b></td></tr>`).join('')}</tbody></table>`;$('plansTable').innerHTML=plans.length?`<table><thead><tr><th>保存時間</th><th>統計杀号</th><th>AI候選</th></tr></thead><tbody>${plans.map(p=>`<tr><td>${esc(p.time)}</td><td>${p.stat.map(x=>x.join('')).join(' / ')}</td><td>${p.ai.map(x=>x.join('')).join(' / ')}</td></tr>`).join('')}</tbody></table>`:'<div class="note">尚無保存方案</div>'}
 function renderAll(){renderK();renderWork();renderStats();renderHistory()}
 function parseLLM(text){let t=text.replace(/```(?:json)?/gi,'').replace(/```/g,'').trim(),m=t.match(/\{[\s\S]*\}/);if(!m)throw Error('AI未返回JSON格式');let o=JSON.parse(m[0]);if(!Array.isArray(o.positions)||o.positions.length!==4)throw Error('AI結果缺少四個位置');return o}
-async function loadLLM(){if(!navigator.gpu)throw Error('未偵測到可用WebGPU。請更新瀏覽器或改用電腦；原有功能不受影響。');$('loadModel').disabled=true;$('llmStatus').textContent='正在載入';$('modelNotice').textContent='正在載入本機 AI 程式庫…首次需要網絡。';try{let webllm=await import('https://esm.run/@mlc-ai/web-llm@0.2.84');let model='Qwen2.5-0.5B-Instruct-q4f16_1-MLC';llmEngine=await webllm.CreateMLCEngine(model,{initProgressCallback:r=>{let p=Math.round((r.progress||0)*100);$('modelProgress').style.width=p+'%';$('modelProgressText').textContent=r.text||('模型載入 '+p+'%');$('modelNotice').textContent=r.text||'正在下載模型';}});llmReady=true;$('llmStatus').textContent='已載入';$('modelNotice').className='notice good';$('modelNotice').textContent='本機 Qwen 模型已載入。可開始獨立分析及審核。模型首次下載後由瀏覽器快取管理；請勿清除網站資料。';$('unloadModel').disabled=false;$('runAI').disabled=false;$('modelProgress').style.width='100%';}catch(e){$('llmStatus').textContent='載入失敗';$('modelNotice').className='notice bad';$('modelNotice').textContent='本機 AI 載入失敗：'+e.message+'。請檢查網絡、WebGPU及設備記憶體。統計與特徵引擎仍可使用。';throw e}finally{$('loadModel').disabled=false}}
+async function loadLLM(){
+ if(!navigator.gpu)throw Error('未偵測到可用 WebGPU。請更新 Safari／瀏覽器或改用支援 WebGPU 的電腦；原有統計與 AI 特徵引擎不受影響。');
+ const isIPhone=/iPhone|iPod/i.test(navigator.userAgent);
+ if(isIPhone&&!confirm('注意：本機 Qwen 模型約 945 MB，iPhone 可能因記憶體或 WebGPU 資源不足而失敗。建議先在電腦下載和測試。仍要在此 iPhone 嘗試嗎？'))return;
+ $('loadModel').disabled=true;
+ $('llmStatus').textContent='正在載入';
+ $('modelNotice').textContent='正在載入本機 AI 程式庫…首次需要網絡。模型約 945 MB，下載時間取決於網絡。';
+ let lastProgressAt=Date.now(),lastText='',watchdog=null;
+ try{
+   let webllm;
+   try{
+     webllm=await import('https://esm.run/@mlc-ai/web-llm@0.2.84');
+   }catch(importErr){
+     $('modelNotice').textContent='主要程式庫來源連線失敗，正在嘗試備用 CDN…';
+     webllm=await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.84/+esm');
+   }
+   const model='Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+   watchdog=setInterval(()=>{
+     if(Date.now()-lastProgressAt>45000){
+       $('modelNotice').textContent='下載仍未收到新的進度回報。若長時間停在「Start to fetch params」，通常是模型主機連線受阻、網速太慢，或設備記憶體／WebGPU不足。請先不要反覆點擊；可取消後改用電腦及穩定 Wi-Fi。';
+       $('modelProgressText').textContent='等待模型參數回應…（沒有虛報下載百分比）';
+     }
+   },10000);
+   llmEngine=await webllm.CreateMLCEngine(model,{
+     initProgressCallback:r=>{
+       lastProgressAt=Date.now();
+       const p=Number(r.progress);
+       if(Number.isFinite(p)){
+         const pct=Math.max(0,Math.min(100,Math.round(p*100)));
+         $('modelProgress').style.width=pct+'%';
+         $('modelProgressText').textContent=(r.text||'模型載入')+' · '+pct+'%';
+       }else{
+         $('modelProgressText').textContent=r.text||'模型載入中…';
+       }
+       if(r.text!==lastText){
+         lastText=r.text||'';
+         $('modelNotice').textContent=lastText||'正在下載模型參數…';
+       }
+     }
+   });
+   llmReady=true;
+   $('llmStatus').textContent='已載入';
+   $('modelNotice').className='notice good';
+   $('modelNotice').textContent='本機 Qwen 模型已載入。可開始獨立分析及審核。首次下載後由瀏覽器快取管理；請勿清除網站資料。';
+   $('unloadModel').disabled=false;
+   $('runAI').disabled=false;
+   $('modelProgress').style.width='100%';
+ }catch(e){
+   $('llmStatus').textContent='載入失敗';
+   $('modelNotice').className='notice bad';
+   $('modelNotice').textContent='本機 AI 載入失敗：'+(e?.message||String(e))+'。若停在 Start to fetch params，請檢查是否能連線 Hugging Face 模型主機，並優先改用電腦＋Wi-Fi。iPhone 可繼續使用原有統計及 AI 特徵引擎。';
+   throw e;
+ }finally{
+   if(watchdog)clearInterval(watchdog);
+   $('loadModel').disabled=false;
+ }
+}
 function makePrompt(){let win=$('window').value,rows=win==='all'?draws:draws.slice(-Number(win)),summary=POS.map((p,i)=>({position:p,k:counts[i],frequency:countsFor(rows,i),stat_candidates:statSets[i],feature_candidates:aiSets[i]}));return`你是排列五歷史數據研究助理。只分析萬千百十四個位置，絕不分析個位。公平彩票不能可靠預測，不得宣稱必中或優勢。請根據以下真實摘要獨立提出每位置恰好 K 個候選排除數字，並審核統計引擎候選的盲點。不要照抄統計候選，若無可靠理由可如實指出。輸出純JSON，格式：{"positions":[{"position":"萬位","candidates":[0,1,2],"audit":"...","caution":"..."},...],"overall":"..."}。所有 candidates 必須是0至9的整數且數量符合K。
 資料摘要：${JSON.stringify(summary)}
 回測結果（如有）：${JSON.stringify(lastBacktest||'尚未執行')}`}

@@ -27,3 +27,11 @@
 - WebLLM: https://github.com/mlc-ai/web-llm
 - Qwen2.5-0.5B-Instruct q4f16_1-MLC
 - 模型載入採用 WebLLM CDN 模組，首次使用需要網絡。
+
+
+## V5.1.1 AI 下載診斷修正
+- 明確標示 Qwen2.5-0.5B 模型約 945 MB。
+- iPhone 嘗試下載前顯示設備資源提醒。
+- WebLLM 程式庫增加備用 CDN 載入路徑。
+- 若 45 秒沒有新進度回報，顯示網絡／設備診斷提示；不偽造進度百分比。
+- iPhone 若無法載入大型語言模型，原有統計引擎及 AI 特徵引擎仍可使用。
