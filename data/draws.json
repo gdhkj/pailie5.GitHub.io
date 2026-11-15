@@ -1,8 +1,7 @@
 {
   "meta": {
-    "source": "待 GitHub Actions 首次同步官方接口",
-    "updated_at": "",
-    "status": "尚未完成官方接口实測；請運行 workflow_dispatch",
+    "source": "請使用者手動導入官方開獎資料",
+    "status": "空白初始資料；未連接官方 API",
     "records": 0
   },
   "draws": []
