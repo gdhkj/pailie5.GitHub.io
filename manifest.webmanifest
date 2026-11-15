@@ -1,11 +1,9 @@
 {
-  "name": "排列五 V5 AI雙引擎分析",
-  "short_name": "排列五V5",
+  "name": "排列五 V5.2 多模型交叉杀号",
+  "short_name": "排列五V5.2",
   "start_url": "./",
-  "scope": "./",
   "display": "standalone",
-  "background_color": "#09111e",
+  "background_color": "#0b1220",
   "theme_color": "#101827",
-  "lang": "zh-Hant",
-  "description": "排列五四位置統計與本機AI雙引擎分析工具"
+  "lang": "zh-Hant"
 }
